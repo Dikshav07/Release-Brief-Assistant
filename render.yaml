@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: release-brief-assistant
+    runtime: node
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    disk:
+      name: release-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: 22.13.0
+      - key: DB_PATH
+        value: /var/data/releases.sqlite
+      - key: AI_MODEL
+        value: gpt-4o-mini
+      - key: AI_API_KEY
+        sync: false
