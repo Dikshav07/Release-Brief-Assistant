@@ -1,21 +1,50 @@
 # Agent usage and verification
 
+This file explains how AI assistance was used to build the project, what was checked, and what still needs attention.
+
 ## Tools and prompts
 
-The implementation was produced in Codex with the user's pasted product/build prompt as the requirements source. Tools used: Codex shell commands for dependency installation, source edits, builds, and tests; the browser was used to attempt local UI access; Render's published docs were checked for disk persistence and build/start configuration. Representative prompt: “Build Release Brief Assistant with a simple TypeScript full-stack stack, deterministic release checks, versioned statements, human review, staleness, final brief, offline tests, and Render configuration.”
+Codex was used to read and edit the project, run commands, and work through setup and provider errors. The browser was used to check local access. Render documentation was consulted for deployment and storage configuration.
 
-## Delegation and suggestions
+The main request was to build a release-brief app with version history, release checks, AI draft statements, human review, stale-statement handling, a final brief, tests, and Render configuration.
 
-No delegated agents were used. The implementation chose TypeScript, React, Express, and SQLite to keep frontend/backend in one language and support one-service deployment. No unrequested integrations or deployment action were added.
+## Delegated work and design choices
 
-## Verification
+No work was delegated to other agents. The app uses TypeScript, React, Express, and SQLite so the frontend and backend can be maintained in one project and deployed as one web service.
 
-Verified locally: `npm test` passes (9 tests); `npm run build` succeeds; the production server started with `npm start`; the home page returned HTTP 200 and `/api/health` returned `{"ok":true}`. `npm audit --omit=dev` reported no production dependency vulnerabilities. Render deployment was not attempted.
+An attempt to use `better-sqlite3` was rejected because it needed a native C++ build toolchain that was unavailable in the environment. The app uses Node's built-in `node:sqlite` instead, so it requires Node.js 22.13 or newer. Node may print an experimental API warning when SQLite starts.
+
+## How the app was checked
+
+- The development server was run locally and reported that it was listening on port 3000.
+- A local Gemini request succeeded with `gemini-3.5-flash-lite`. The app logged provider mode, kept five statements, and dropped one statement during validation.
+- The focused core and AI tests passed: 10 tests passed across `src/ai.test.ts` and `src/core.test.ts`.
+- The full test run could not complete in the restricted environment: its API integration test could not open a local network connection (`EACCES`). This does not confirm whether that test passes on a normal developer machine.
+- Render deployment and hosted behavior were not independently verified as part of this work.
+
+Run the test suite with:
+
+```sh
+npm test
+```
+
+## Gemini setup and troubleshooting
+
+Provider drafting uses Google's Gemini API through its OpenAI-compatible chat completions endpoint. Configure these values in `.env` for local development or in the hosting provider's secret settings:
+
+```env
+AI_API_KEY=your-gemini-api-key
+AI_API_URL=https://generativelanguage.googleapis.com/v1beta/openai/chat/completions
+AI_MODEL=gemini-3.5-flash-lite
+```
+
+Never put a real key in `.env.example` or commit it to source control. Without `AI_API_KEY`, the app uses simple mock/template drafts instead of calling Gemini.
+
+Provider failures are logged as `ai_call_failed` with the status and a shortened response body. The key is redacted from that log. A `400` response may indicate a key or request problem; a `404` response may indicate that the selected model is unavailable to that key. Check the logged response, confirm the configured model is available, and restart the local server after changing `.env`. On Render, update the Environment settings and redeploy.
 
 ## Important limitations
 
-Provider calls require an OpenAI-compatible endpoint and key. Mock generation is deterministic and heuristic. The UI does not provide authentication; a real deployment with sensitive release data needs access control. Render SQLite storage is configured for a single instance.
-
-## Rejected implementation approach
-
-The initial SQLite package choice (`better-sqlite3`) required a local native C++ toolchain that was unavailable in this environment. That install attempt failed, so the native dependency was removed and replaced with Node's built-in `node:sqlite`; the project now requires Node 22.13 or newer. This avoids a native addon, though Node currently emits an experimental API warning for `node:sqlite`.
+- AI statements and impact labels are drafts and need human review.
+- The app has no user accounts or access controls. Add access protection before using it with confidential release information.
+- The SQLite configuration is intended for one running app instance. Use a hosted database before scaling to multiple instances.
+- Without a Gemini key, generated content comes from simple deterministic mock rules.

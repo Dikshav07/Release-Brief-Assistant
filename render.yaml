@@ -14,6 +14,8 @@ services:
       - key: DB_PATH
         value: /var/data/releases.sqlite
       - key: AI_MODEL
-        value: gpt-4o-mini
+        value: gemini-3.5-flash-lite
+      - key: AI_API_URL
+        value: https://generativelanguage.googleapis.com/v1beta/openai/chat/completions
       - key: AI_API_KEY
         sync: false

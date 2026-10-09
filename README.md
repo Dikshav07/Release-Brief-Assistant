@@ -1,77 +1,129 @@
 # Release Brief Assistant
 
-A small release communication workspace for recording versioned release packages, checking required information, drafting cited communications, reviewing every statement, comparing versions, and generating a brief from approved, current statements.
+Release Brief Assistant helps teams turn release notes into clear, reviewable communications. It stores versioned release information, checks for missing evidence, creates draft statements, and builds a final brief from content that a person has reviewed.
 
-## Demo
+AI output is a draft. Completing a review records that a person reviewed the statements; it does not approve the release.
 
-1. Run the app and enter a release package. Use `None` for intentionally empty sections.
-2. Save the first version and inspect deterministic checks.
-3. Generate AI drafts. Without a key, the app labels heuristic output as mock/template-generated.
-4. Edit, approve, or reject each statement. Save edits to return that statement to pending.
-5. Save a changed package as another version, compare versions, and inspect stale citations.
-6. Generate the final brief. It contains only approved, non-stale content and clearly states that human review is not release approval.
+## What it does
 
-## Tech stack
+- Records release details, including features, bug fixes, behavior changes, QA results, limitations, migration notes, and affected groups.
+- Saves versions and compares changes between them.
+- Checks release information and AI statement citations against the supplied package and QA notes.
+- Lets a reviewer edit, approve, or reject each statement.
+- Marks statements stale when the release information they cite changes.
+- Builds technical and stakeholder briefs from approved, current statements.
 
-TypeScript, React, Vite, Express, Node's built-in SQLite API (`node:sqlite`), Zod validation, and Vitest. The server serves the built frontend and API from one web service.
+## Requirements
 
-## Setup and run
+- Node.js 22.13 or newer. The application uses Node's built-in `node:sqlite` API.
+- npm, included with Node.js.
 
-Requires Node.js 22.13 or newer (`node:sqlite` is used for persistent SQLite without a native addon).
+## Run locally
+
+Open a terminal in the project folder and run:
 
 ```sh
 npm install
+```
+
+Create a private `.env` file from the example. In PowerShell, run:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+On macOS or Linux, run:
+
+```sh
 cp .env.example .env
+```
+
+Start the development server:
+
+```sh
 npm run dev
 ```
 
-Open the port printed by the server (it starts at `http://localhost:3000` and automatically tries the next port up to 10 times if that port is busy). To build and run the production server locally:
+Open the address printed in the terminal, usually [http://localhost:3000](http://localhost:3000). If port 3000 is already in use, the server tries nearby ports and prints the address it selected. Keep the terminal open while using the app; press `Ctrl+C` to stop the server.
+
+To run the production build locally:
 
 ```sh
 npm run build
 npm start
 ```
 
-## Environment variables
+## Configure Gemini drafts
 
-See `.env.example`: `PORT`, `DB_PATH`, `AI_API_KEY`, `AI_MODEL`, and `AI_API_URL`. The optional provider uses an OpenAI-compatible chat completions endpoint. The key is read only in `src/ai.ts`; it is never logged. Without a key, deterministic mock/template drafts are used.
+The app can call Google's Gemini API to draft statements. Add your Gemini API key to the `.env` file and use a model available to that key:
 
-## Architecture
+```env
+AI_API_KEY=your-gemini-api-key
+AI_API_URL=https://generativelanguage.googleapis.com/v1beta/openai/chat/completions
+AI_MODEL=gemini-3.5-flash-lite
+```
 
-- `src/core.ts`: pure package normalization, IDs and hashes, deterministic checks, version diffs, and staleness.
-- `src/ai.ts`: sole provider boundary, mock generator, schema and citation validation, and AI log records.
-- `src/db.ts`: SQLite schema and database initialization.
-- `src/server.ts`: Express API, input validation, workflow coordination, and structured event logs.
-- `src/main.tsx`, `src/style.css`: responsive React UI. React renders release and model text as text nodes; there is no HTML injection rendering.
-- `src/*.test.ts`: offline unit tests for core and AI behavior.
+The example model worked in the verified local setup, but model availability can change. Keep the real API key in `.env` locally or in your hosting provider's secret settings. Never commit the key or place it in `.env.example`.
 
-## Staleness and version history
+The other `.env` settings are:
 
-Item IDs are retained for exact text matches; remaining changed lines reuse unused IDs in field order, and additional lines get the next number. Hashes are based on trimmed text. A statement goes stale when its cited item changes or disappears in the latest version. Unsupported claims also track QA scope; missing-information statements track the full package scope. Older version statements stay attached to that version and are evaluated against the latest version in the release.
+| Variable | Purpose | Example |
+| --- | --- | --- |
+| `PORT` | Port used by the web server | `3000` |
+| `DB_PATH` | Location of the SQLite database | `data/releases.sqlite` |
 
-## AI validation and human review
+If `AI_API_KEY` is not set, the app uses deterministic mock/template drafts. These are examples generated by the app's simple rules; they do not come from Gemini.
 
-AI results must match a strict Zod shape. Citations must exist in the version; text must be non-empty; ordinary statements must cite at least one item; prohibited release-approval language is dropped. Invalid entries are returned as validation errors and logged. AI writes draft statements and classifications only. Only human actions can edit, approve, reject, or complete review. Completing review is a record of review and never means the release itself is approved. The final brief filters out pending, rejected, and stale statements.
+## Typical workflow
 
-## Testing
+1. Enter the release details and save a version.
+2. Review the package checks and any missing QA evidence.
+3. Generate AI drafts, then read each statement and its citations.
+4. Edit, approve, or reject each statement. Saving an edit sends it back for review.
+5. Save a new version when release details change, then compare versions and review statements marked stale.
+6. Generate the final brief after reviewing the statements. The brief excludes pending, rejected, and stale statements.
+
+## Project structure
+
+| File or directory | Responsibility |
+| --- | --- |
+| `src/core.ts` | Package normalization, IDs and hashes, release checks, version comparison, and stale-state rules |
+| `src/ai.ts` | Gemini and mock drafting, response validation, citation checks, and AI event logging |
+| `src/db.ts` | SQLite schema and database setup |
+| `src/server.ts` | Express API, input validation, and workflow coordination |
+| `src/main.tsx`, `src/style.css` | React interface and styling |
+| `src/*.test.ts` | Automated tests |
+| `sample_release.json` | Example release package for exercising checks |
+| `render.yaml` | Render service configuration |
+
+Release item IDs are retained for exact text matches. A cited statement becomes stale if its cited item changes or is removed in a later version. Unsupported claims also depend on QA evidence, and missing-information statements depend on the package contents.
+
+## Tests
+
+Run the automated test suite with:
 
 ```sh
 npm test
 ```
 
-Tests use mock AI and run without credentials or network. `sample_release.json` shows a package intended to exercise the QA evidence, migration, and QA gap checks.
+The tests use mock behavior and do not require an API key or network access.
 
-## Deployment
+## Deployment on Render
 
-`render.yaml` prepares one Render Node web service. Build command: `npm install && npm run build`; start command: `npm start` (runs `node dist/src/server.js`). Set `DB_PATH=/var/data/releases.sqlite`, attach the declared persistent disk at `/var/data`, and set `AI_API_KEY` only if provider drafts are wanted. `AI_MODEL` is configurable. Render documents that service filesystems are ephemeral by default and that persistent disks retain files under their mount path across deploys/restarts; disks are available on paid web services, are single-instance, and are runtime-only. The database path is placed under the disk mount. See [Render persistent disks](https://render.com/docs/disks), [Render web services](https://render.com/docs/web-services), and [Render deploys](https://render.com/docs/deploys). No deployment was performed. The app is not configured for multi-instance SQLite access.
+The included `render.yaml` describes a Node web service. It builds with `npm install && npm run build` and starts with `npm start`.
 
-After deploy, verify: open the page; create a release; save a version; generate drafts; edit and approve statements; save a second version; compare and view stale statements; open the final brief; complete human review after resolving pending/stale items. Confirm data remains after a redeploy.
+1. Connect the Git repository to Render and create the service from the included Blueprint configuration.
+2. In the service's Environment settings, add `AI_API_KEY` as a secret. Do not put the key in Git or in `render.yaml`.
+3. Deploy, open the service URL, and verify that you can create a release, save a version, generate drafts, review statements, and open the final brief.
+
+The configuration stores SQLite data under `/var/data` and declares a persistent disk mounted at that path. Check your Render plan for disk availability. SQLite storage is intended for a single service instance; use a hosted database before scaling to multiple instances. See Render's documentation for [persistent disks](https://render.com/docs/disks), [web services](https://render.com/docs/web-services), and [deploys](https://render.com/docs/deploys).
 
 ## Limitations and excluded scope
 
-No Git provider integration, software deployment, rollback, or public changelog publishing. The mock generator is intentionally simple and should be treated as a template. Provider mode expects an OpenAI-compatible chat completions response. There is no authentication or multi-user access control, so deploy only behind suitable access controls for confidential release data. SQLite on a persistent disk supports one service instance; use a hosted database before scaling out. Impact classification is a draft and needs human review.
+This app does not connect to Git providers, deploy or roll back software, or publish changelogs. It does not provide user accounts or access control, so do not use a public deployment for confidential release information without adding suitable access controls.
 
-## AI tool use and verification
+AI statements and impact labels are drafts and need human review. Without a Gemini key, the app uses simple mock/template drafts. The SQLite setup is for one running instance. Use a hosted database before scaling the app.
 
-AI assistance was used to draft implementation code and test cases from the product requirements. The output was reviewed against the required API, deterministic rules, citation validation, human-only review controls, and staleness behavior. Verification completed locally: `npm test` passes (9 tests), `npm run build` succeeds, `npm start` serves the app, `/` returns HTTP 200, `/api/health` returns `{"ok":true}`, and `npm audit --omit=dev` reports no production dependency vulnerabilities.
+## AI use and verification
 
+AI assistance was used during implementation. Gemini provider mode was verified in a local run: the app logged `mode: provider`, used `gemini-3.5-flash-lite`, and kept five generated statements while dropping one during validation. Automated tests can be run with `npm test`; see [AGENT_USAGE.md](AGENT_USAGE.md) for implementation notes and verification details.
